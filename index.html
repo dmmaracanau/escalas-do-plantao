@@ -55,7 +55,7 @@
             <div id="team-badge" class="font-black text-3xl mb-4"></div>
             <div id="shifts-list" class="space-y-3 mb-6"></div>
             <div class="border-t border-slate-800 pt-4">
-                <input type="text" id="new-shift-input" placeholder="Ex: Noite - 19h-07h [Motivo]" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm mb-2 outline-none focus:ring-1 focus:ring-indigo-500">
+                <input type="text" id="new-shift-input" placeholder="Ex: 08h-20h" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm mb-2 outline-none focus:ring-1 focus:ring-indigo-500">
                 <button onclick="addShift()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm">Adicionar Vaga</button>
             </div>
         </aside>
@@ -147,11 +147,18 @@
             document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
             const list = document.getElementById('shifts-list'); list.innerHTML = '';
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between"><div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div><input type="text" value="${s.name || ''}" placeholder="Digite seu nome. Ex. João" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div><button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button></div>`;
+                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 space-y-2">
+                    <input type="text" value="${s.label}" class="w-full bg-slate-900 text-emerald-400 font-bold text-sm border-none p-0" onchange="updateLabel('${selectedDate}', ${idx}, this.value)">
+                    <div class="flex justify-between items-center">
+                        <input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border-none rounded p-1 text-sm mr-2" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+                        <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button>
+                    </div>
+                </div>`;
             });
         }
 
         window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
+        window.updateLabel = function(date, idx, val) { data.shifts[date][idx].label = val; setDirty(true); render(); };
         window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
         window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); if (data.shifts[date].length === 0) delete data.shifts[date]; setDirty(true); render(); };
         window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
