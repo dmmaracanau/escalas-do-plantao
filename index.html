@@ -64,7 +64,17 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
         import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-        const firebaseConfig = { /* ... seu config ... */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA",
+            authDomain: "escalas-do-plantao-81ae2.firebaseapp.com",
+            databaseURL: "https://escalas-do-plantao-81ae2-default-rtdb.firebaseio.com",
+            projectId: "escalas-do-plantao-81ae2",
+            storageBucket: "escalas-do-plantao-81ae2.firebasestorage.app",
+            messagingSenderId: "545888551770",
+            appId: "1:545888551770:web:381cd7cbf5e138013c2963",
+            measurementId: "G-VNDR0J2KC6"
+        };
+
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const dbRef = ref(db, 'escala_dados');
@@ -72,7 +82,7 @@
         let data = { shifts: {} };
         let currentView = new Date();
         let selectedDate = null;
-        let selectedOfficer = null; // Novo estado
+        let selectedOfficer = null;
         let dirty = false;
 
         window.getEquipe = function(dateStr) {
@@ -113,15 +123,10 @@
                 const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 const eq = getEquipe(dateStr);
                 const shifts = data.shifts[dateStr] || [];
-                
-                // Verifica se oficial selecionado tem plantão neste dia
                 const hasShift = selectedOfficer && shifts.some(s => s.name === selectedOfficer);
                 
                 const div = document.createElement('div');
-                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 flex flex-col justify-between 
-                                ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''} 
-                                ${hasShift ? 'highlight-day' : ''}`;
-                
+                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 flex flex-col justify-between ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''} ${hasShift ? 'highlight-day' : ''}`;
                 div.innerHTML = `
                     <div class="flex justify-between items-start">
                         <span class="font-bold text-lg">${d}</span>
@@ -148,7 +153,27 @@
             });
         }
 
-        function renderShifts() { /* ... resto igual ... */ }
+        function renderShifts() {
+            if (!selectedDate) {
+                document.getElementById('day-title').innerText = 'Selecione um dia';
+                document.getElementById('team-badge').innerHTML = '';
+                document.getElementById('shifts-list').innerHTML = '';
+                return;
+            }
+            const eq = getEquipe(selectedDate);
+            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
+            document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
+            const list = document.getElementById('shifts-list');
+            list.innerHTML = '';
+            (data.shifts[selectedDate] || []).forEach((s, idx) => {
+                list.innerHTML += `
+                    <div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between">
+                        <div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
+                        <input type="text" value="${s.name || ''}" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div>
+                        <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button>
+                    </div>`;
+            });
+        }
 
         window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
         window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
