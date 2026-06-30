@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escalas de Extra do Plantão</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen text-slate-200 p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold text-white">Escalas de Extra do Plantão</h1>
+        <button onclick="saveData()" id="save-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold transition">Salvar Alterações</button>
+    </header>
+
+    <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
+        <!-- Coluna de Usuários -->
+        <aside class="w-full md:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit">
+            <h2 class="text-sm font-bold text-slate-500 uppercase mb-4">Colaboradores</h2>
+            <div id="user-list" class="space-y-2"></div>
+        </aside>
+
+        <!-- Calendário -->
+        <section class="flex-grow bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <div class="flex justify-between items-center mb-6">
+                <button onclick="changeMonth(-1)" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">◀</button>
+                <h2 id="month-year" class="text-xl font-bold capitalize">Carregando...</h2>
+                <button onclick="changeMonth(1)" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700">▶</button>
+            </div>
+            <div class="calendar-grid text-center text-xs font-bold text-slate-500 mb-2">
+                <div>DOM</div><div>SEG</div><div>TER</div><div>QUA</div><div>QUI</div><div>SEX</div><div>SÁB</div>
+            </div>
+            <div id="calendar-grid" class="calendar-grid gap-2"></div>
+        </section>
+
+        <!-- Painel de Vagas -->
+        <aside class="w-full md:w-80 bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 id="day-title" class="font-bold text-lg mb-4">Selecione um dia</h2>
+            <div id="shifts-list" class="space-y-3 mb-6"></div>
+            <div class="border-t border-slate-800 pt-4">
+                <input type="text" id="new-shift-input" placeholder="Ex: 08h-20h" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm mb-2 outline-none focus:ring-1 focus:ring-indigo-500">
+                <button onclick="addShift()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm">Adicionar Vaga</button>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const API = "https://kvdb.io/8Gxd6FbKK2UReaQqGUbfVx/escala_dados";
+        let data = { shifts: {} };
+        let currentView = new Date();
+        let selectedDate = null;
+
+        async function fetchData() {
+            try {
+                const res = await fetch(API);
+                if(res.ok) data = await res.json();
+                render();
+            } catch(e) { console.error("Erro ao carregar"); }
+        }
+
+        async function saveData() {
+            const btn = document.getElementById('save-btn');
+            btn.innerText = "Salvando...";
+            try {
+                await fetch(API, { method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} });
+                btn.innerText = "Salvo!";
+                setTimeout(() => btn.innerText = "Salvar Alterações", 2000);
+            } catch(e) { alert("Erro ao salvar!"); btn.innerText = "Salvar"; }
+        }
+
+        function render() {
+            document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            renderCalendar();
+            renderUsers();
+            renderShifts();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            const firstDay = new Date(currentView.getFullYear(), currentView.getMonth(), 1).getDay();
+            const daysInMonth = new Date(currentView.getFullYear(), currentView.getMonth() + 1, 0).getDate();
+
+            for(let i=0; i<firstDay; i++) grid.appendChild(document.createElement('div'));
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const shifts = data.shifts[dateStr] || [];
+                const div = document.createElement('div');
+                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''}`;
+                div.innerHTML = `<div class="font-bold text-lg mb-1">${d}</div><div class="flex flex-wrap gap-1">${shifts.map(s => `<div class="w-2 h-2 rounded-full ${s.name ? 'bg-red-500' : 'bg-emerald-500'}"></div>`).join('')}</div>`;
+                div.onclick = () => { selectedDate = dateStr; render(); };
+                grid.appendChild(div);
+            }
+        }
+
+        function renderUsers() {
+            const userList = document.getElementById('user-list');
+            userList.innerHTML = '';
+            const users = new Set();
+            Object.values(data.shifts).flat().forEach(s => { if(s.name) users.add(s.name); });
+            users.forEach(u => userList.innerHTML += `<div class="text-sm bg-slate-800 p-2 rounded">${u}</div>`);
+        }
+
+        function renderShifts() {
+            if(!selectedDate) return;
+            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
+            const list = document.getElementById('shifts-list');
+            list.innerHTML = '';
+            (data.shifts[selectedDate] || []).forEach((s, idx) => {
+                list.innerHTML += `
+                    <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                        <div class="text-xs font-bold mb-1 ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
+                        <input type="text" value="${s.name || ''}" placeholder="Nome..." class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+                    </div>`;
+            });
+        }
+
+        function updateName(date, idx, val) { data.shifts[date][idx].name = val; render(); }
+        function addShift() {
+            const input = document.getElementById('new-shift-input');
+            if(!selectedDate || !input.value) return;
+            if(!data.shifts[selectedDate]) data.shifts[selectedDate] = [];
+            data.shifts[selectedDate].push({ label: input.value, name: '' });
+            input.value = ''; render();
+        }
+        function changeMonth(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); }
+        fetchData();
+    </script>
+</body>
+</html>
