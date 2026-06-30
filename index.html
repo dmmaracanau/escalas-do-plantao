@@ -16,10 +16,7 @@
             100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.0); transform: translateY(0); }
         }
         .delete-btn { background: transparent; border: none; color: #f87171; cursor: pointer; }
-        .eq-A { color: #60a5fa; }
-        .eq-B { color: #fbbf24; }
-        .eq-C { color: #f87171; }
-        .eq-D { color: #34d399; }
+        .eq-A { color: #60a5fa; } .eq-B { color: #fbbf24; } .eq-C { color: #f87171; } .eq-D { color: #34d399; }
         .selected-officer { border: 1px solid #6366f1; background-color: #312e81 !important; }
         .highlight-day { border: 2px solid #fbbf24 !important; box-shadow: 0 0 10px rgba(251,191,36,0.3); }
     </style>
@@ -33,7 +30,10 @@
 
     <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <aside class="w-full md:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit">
-            <h2 class="text-sm font-bold text-slate-500 uppercase mb-4">Oficial Investigador Policial</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-bold text-slate-500 uppercase">OIP</h2>
+                <button onclick="clearSelection()" class="text-[10px] bg-slate-800 px-2 py-1 rounded hover:bg-slate-700 uppercase">Limpar</button>
+            </div>
             <div id="user-list" class="space-y-2"></div>
         </aside>
 
@@ -64,16 +64,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
         import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA",
-            authDomain: "escalas-do-plantao-81ae2.firebaseapp.com",
-            databaseURL: "https://escalas-do-plantao-81ae2-default-rtdb.firebaseio.com",
-            projectId: "escalas-do-plantao-81ae2",
-            storageBucket: "escalas-do-plantao-81ae2.firebasestorage.app",
-            messagingSenderId: "545888551770",
-            appId: "1:545888551770:web:381cd7cbf5e138013c2963",
-            measurementId: "G-VNDR0J2KC6"
-        };
+        const firebaseConfig = { apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA", authDomain: "escalas-do-plantao-81ae2.firebaseapp.com", databaseURL: "https://escalas-do-plantao-81ae2-default-rtdb.firebaseio.com", projectId: "escalas-do-plantao-81ae2", storageBucket: "escalas-do-plantao-81ae2.firebasestorage.app", messagingSenderId: "545888551770", appId: "1:545888551770:web:381cd7cbf5e138013c2963", measurementId: "G-VNDR0J2KC6" };
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
@@ -82,7 +73,7 @@
         let data = { shifts: {} };
         let currentView = new Date();
         let selectedDate = null;
-        let selectedOfficer = null;
+        let selectedOfficers = [];
         let dirty = false;
 
         window.getEquipe = function(dateStr) {
@@ -94,12 +85,9 @@
             return equipes[((diffDays % 4) + 4) % 4];
         };
 
-        function setDirty(val = true) {
-            dirty = val;
-            const btn = document.getElementById('save-btn');
-            if (dirty) { btn.classList.add('save-pulse'); btn.innerText = "Salvar Alterações *"; }
-            else { btn.classList.remove('save-pulse'); btn.innerText = "Salvar Alterações"; }
-        }
+        window.clearSelection = function() { selectedOfficers = []; render(); };
+
+        function setDirty(val = true) { dirty = val; const btn = document.getElementById('save-btn'); if (dirty) { btn.classList.add('save-pulse'); btn.innerText = "Salvar Alterações *"; } else { btn.classList.remove('save-pulse'); btn.innerText = "Salvar Alterações"; } }
 
         onValue(dbRef, (snapshot) => { data = snapshot.val() || { shifts: {} }; render(); });
 
@@ -107,14 +95,11 @@
 
         function render() {
             document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            renderCalendar();
-            renderUsers();
-            renderShifts();
+            renderCalendar(); renderUsers(); renderShifts();
         }
 
         function renderCalendar() {
-            const grid = document.getElementById('calendar-grid');
-            grid.innerHTML = '';
+            const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
             const firstDay = new Date(currentView.getFullYear(), currentView.getMonth(), 1).getDay();
             const daysInMonth = new Date(currentView.getFullYear(), currentView.getMonth() + 1, 0).getDate();
 
@@ -123,55 +108,41 @@
                 const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 const eq = getEquipe(dateStr);
                 const shifts = data.shifts[dateStr] || [];
-                const hasShift = selectedOfficer && shifts.some(s => s.name === selectedOfficer);
+                const hasShift = selectedOfficers.length > 0 && shifts.some(s => selectedOfficers.includes(s.name));
                 
                 const div = document.createElement('div');
                 div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 flex flex-col justify-between ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''} ${hasShift ? 'highlight-day' : ''}`;
-                div.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <span class="font-bold text-lg">${d}</span>
-                        <span class="text-xs font-black eq-${eq}">${eq}</span>
-                    </div>
-                    <div class="flex flex-wrap gap-1">${shifts.map(s => `<div class="w-2 h-2 rounded-full ${s.name ? 'bg-red-500' : 'bg-emerald-500'}"></div>`).join('')}</div>
-                `;
+                div.innerHTML = `<div class="flex justify-between items-start"><span class="font-bold text-lg">${d}</span><span class="text-xs font-black eq-${eq}">${eq}</span></div><div class="flex flex-wrap gap-1">${shifts.map(s => `<div class="w-2 h-2 rounded-full ${s.name ? 'bg-red-500' : 'bg-emerald-500'}"></div>`).join('')}</div>`;
                 div.onclick = () => { selectedDate = dateStr; render(); };
                 grid.appendChild(div);
             }
         }
 
         function renderUsers() {
-            const userList = document.getElementById('user-list');
-            userList.innerHTML = '';
-            const users = new Set();
-            Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
+            const userList = document.getElementById('user-list'); userList.innerHTML = '';
+            const users = new Set(); Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
             Array.from(users).sort().forEach(u => {
+                const isSelected = selectedOfficers.includes(u);
                 const div = document.createElement('div');
-                div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 ${selectedOfficer === u ? 'selected-officer' : 'bg-slate-800'}`;
+                div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 ${isSelected ? 'selected-officer' : 'bg-slate-800'}`;
                 div.innerText = u;
-                div.onclick = () => { selectedOfficer = (selectedOfficer === u) ? null : u; render(); };
+                div.onclick = () => { 
+                    if (isSelected) selectedOfficers = selectedOfficers.filter(o => o !== u);
+                    else selectedOfficers.push(u);
+                    render(); 
+                };
                 userList.appendChild(div);
             });
         }
 
         function renderShifts() {
-            if (!selectedDate) {
-                document.getElementById('day-title').innerText = 'Selecione um dia';
-                document.getElementById('team-badge').innerHTML = '';
-                document.getElementById('shifts-list').innerHTML = '';
-                return;
-            }
+            if (!selectedDate) { document.getElementById('day-title').innerText = 'Selecione um dia'; document.getElementById('team-badge').innerHTML = ''; document.getElementById('shifts-list').innerHTML = ''; return; }
             const eq = getEquipe(selectedDate);
             document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
             document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
-            const list = document.getElementById('shifts-list');
-            list.innerHTML = '';
+            const list = document.getElementById('shifts-list'); list.innerHTML = '';
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `
-                    <div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between">
-                        <div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
-                        <input type="text" value="${s.name || ''}" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div>
-                        <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button>
-                    </div>`;
+                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between"><div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div><input type="text" value="${s.name || ''}" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div><button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button></div>`;
             });
         }
 
