@@ -50,87 +50,128 @@
         </aside>
     </main>
 
-    <script>
-        const API = "https://kvdb.io/8Gxd6FbKK2UReaQqGUbfVx/escala_dados";
-        let data = { shifts: {} };
-        let currentView = new Date();
-        let selectedDate = null;
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+  import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-        async function fetchData() {
-            try {
-                const res = await fetch(API);
-                if(res.ok) data = await res.json();
-                render();
-            } catch(e) { console.error("Erro ao carregar"); }
-        }
+  // Cole aqui o seu firebaseConfig (já fornecido)
+  const firebaseConfig = {
+    apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA",
+    authDomain: "escalas-do-plantao-81ae2.firebaseapp.com",
+    databaseURL: "https://escalas-do-plantao-81ae2-default-rtdb.firebaseio.com",
+    projectId: "escalas-do-plantao-81ae2",
+    storageBucket: "escalas-do-plantao-81ae2.firebasestorage.app",
+    messagingSenderId: "545888551770",
+    appId: "1:545888551770:web:381cd7cbf5e138013c2963",
+    measurementId: "G-VNDR0J2KC6"
+  };
 
-        async function saveData() {
-            const btn = document.getElementById('save-btn');
-            btn.innerText = "Salvando...";
-            try {
-                await fetch(API, { method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} });
-                btn.innerText = "Salvo!";
-                setTimeout(() => btn.innerText = "Salvar Alterações", 2000);
-            } catch(e) { alert("Erro ao salvar!"); btn.innerText = "Salvar"; }
-        }
+  // Inicializa Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const dbRef = ref(db, 'escala_dados'); // caminho onde os dados serão salvos
 
-        function render() {
-            document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            renderCalendar();
-            renderUsers();
-            renderShifts();
-        }
+  // Estrutura de dados local
+  let data = { shifts: {} };
+  let currentView = new Date();
+  let selectedDate = null;
 
-        function renderCalendar() {
-            const grid = document.getElementById('calendar-grid');
-            grid.innerHTML = '';
-            const firstDay = new Date(currentView.getFullYear(), currentView.getMonth(), 1).getDay();
-            const daysInMonth = new Date(currentView.getFullYear(), currentView.getMonth() + 1, 0).getDate();
+  // Escuta em tempo real: sempre que o DB mudar, atualiza `data` e a UI
+  onValue(dbRef, (snapshot) => {
+    data = snapshot.val() || { shifts: {} };
+    render();
+  }, (error) => {
+    console.error("Erro ao escutar o banco:", error);
+  });
 
-            for(let i=0; i<firstDay; i++) grid.appendChild(document.createElement('div'));
-            for(let d=1; d<=daysInMonth; d++) {
-                const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const shifts = data.shifts[dateStr] || [];
-                const div = document.createElement('div');
-                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''}`;
-                div.innerHTML = `<div class="font-bold text-lg mb-1">${d}</div><div class="flex flex-wrap gap-1">${shifts.map(s => `<div class="w-2 h-2 rounded-full ${s.name ? 'bg-red-500' : 'bg-emerald-500'}"></div>`).join('')}</div>`;
-                div.onclick = () => { selectedDate = dateStr; render(); };
-                grid.appendChild(div);
-            }
-        }
+  // Função para salvar dados no Firebase (substitui seu fetch POST)
+  window.saveData = async function() {
+    const btn = document.getElementById('save-btn');
+    btn.innerText = "Salvando...";
+    try {
+      await set(dbRef, data);
+      btn.innerText = "Salvo!";
+      setTimeout(() => btn.innerText = "Salvar Alterações", 2000);
+    } catch (e) {
+      alert("Erro ao salvar!");
+      console.error(e);
+      btn.innerText = "Salvar Alterações";
+    }
+  };
 
-        function renderUsers() {
-            const userList = document.getElementById('user-list');
-            userList.innerHTML = '';
-            const users = new Set();
-            Object.values(data.shifts).flat().forEach(s => { if(s.name) users.add(s.name); });
-            users.forEach(u => userList.innerHTML += `<div class="text-sm bg-slate-800 p-2 rounded">${u}</div>`);
-        }
+  // --- Abaixo copie exatamente suas funções de renderização e manipulação ---
+  // Copie as funções render, renderCalendar, renderUsers, renderShifts,
+  // updateName, addShift, changeMonth e a chamada inicial fetchData() substituída.
+  // Exemplo adaptado do seu código original:
 
-        function renderShifts() {
-            if(!selectedDate) return;
-            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
-            const list = document.getElementById('shifts-list');
-            list.innerHTML = '';
-            (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `
-                    <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
-                        <div class="text-xs font-bold mb-1 ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
-                        <input type="text" value="${s.name || ''}" placeholder="Nome..." class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
-                    </div>`;
-            });
-        }
+  function render() {
+    document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    renderCalendar();
+    renderUsers();
+    renderShifts();
+  }
 
-        function updateName(date, idx, val) { data.shifts[date][idx].name = val; render(); }
-        function addShift() {
-            const input = document.getElementById('new-shift-input');
-            if(!selectedDate || !input.value) return;
-            if(!data.shifts[selectedDate]) data.shifts[selectedDate] = [];
-            data.shifts[selectedDate].push({ label: input.value, name: '' });
-            input.value = ''; render();
-        }
-        function changeMonth(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); }
-        fetchData();
-    </script>
+  function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+    const firstDay = new Date(currentView.getFullYear(), currentView.getMonth(), 1).getDay();
+    const daysInMonth = new Date(currentView.getFullYear(), currentView.getMonth() + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const shifts = data.shifts[dateStr] || [];
+      const div = document.createElement('div');
+      div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''}`;
+      div.innerHTML = `<div class="font-bold text-lg mb-1">${d}</div><div class="flex flex-wrap gap-1">${shifts.map(s => `<div class="w-2 h-2 rounded-full ${s.name ? 'bg-red-500' : 'bg-emerald-500'}"></div>`).join('')}</div>`;
+      div.onclick = () => { selectedDate = dateStr; render(); };
+      grid.appendChild(div);
+    }
+  }
+
+  function renderUsers() {
+    const userList = document.getElementById('user-list');
+    userList.innerHTML = '';
+    const users = new Set();
+    Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
+    users.forEach(u => userList.innerHTML += `<div class="text-sm bg-slate-800 p-2 rounded">${u}</div>`);
+  }
+
+  function renderShifts() {
+    if (!selectedDate) return;
+    document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
+    const list = document.getElementById('shifts-list');
+    list.innerHTML = '';
+    (data.shifts[selectedDate] || []).forEach((s, idx) => {
+      list.innerHTML += `
+        <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
+          <div class="text-xs font-bold mb-1 ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
+          <input type="text" value="${s.name || ''}" placeholder="Nome..." class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+        </div>`;
+    });
+  }
+
+  window.updateName = function(date, idx, val) { 
+    if (!data.shifts[date]) return;
+    data.shifts[date][idx].name = val;
+    render();
+  };
+
+  window.addShift = function() {
+    const input = document.getElementById('new-shift-input');
+    if (!selectedDate || !input.value) return;
+    if (!data.shifts[selectedDate]) data.shifts[selectedDate] = [];
+    data.shifts[selectedDate].push({ label: input.value, name: '' });
+    input.value = '';
+    render();
+  };
+
+  window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
+
+  // Não chamamos fetchData; o onValue já sincroniza os dados em tempo real.
+  // Se quiser forçar um render inicial caso o DB esteja vazio:
+  render();
+</script>
+
 </body>
 </html>
