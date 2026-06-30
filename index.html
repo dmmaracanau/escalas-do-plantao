@@ -82,12 +82,15 @@
         let selectedDate = null;
         let dirty = false;
 
-        // Lógica de Equipes
+        // A lógica corrige o ciclo: 01/07 (Quarta) é Equipe A.
+        // getTimezoneOffset é usado para evitar problemas com horários de verão/fusos
         window.getEquipe = function(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const target = new Date(y, m - 1, d);
             const start = new Date(2026, 6, 1); // 01/07/2026
-            const target = new Date(dateStr);
             const diffDays = Math.floor((target - start) / (1000 * 60 * 60 * 24));
             const equipes = ['A', 'B', 'C', 'D'];
+            // Garante que o índice seja positivo
             return equipes[((diffDays % 4) + 4) % 4];
         };
 
@@ -139,10 +142,21 @@
             }
         }
 
-        function renderUsers() { /* ... igual anterior ... */ }
+        function renderUsers() {
+            const userList = document.getElementById('user-list');
+            userList.innerHTML = '';
+            const users = new Set();
+            Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
+            users.forEach(u => userList.innerHTML += `<div class="text-sm bg-slate-800 p-2 rounded">${u}</div>`);
+        }
 
         function renderShifts() {
-            if (!selectedDate) return;
+            if (!selectedDate) {
+                document.getElementById('day-title').innerText = 'Selecione um dia';
+                document.getElementById('team-badge').innerHTML = '';
+                document.getElementById('shifts-list').innerHTML = '';
+                return;
+            }
             const eq = getEquipe(selectedDate);
             document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
             document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
@@ -158,9 +172,9 @@
             });
         }
 
-        window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
-        window.addShift = function() { /* ... igual anterior ... */ };
-        window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); setDirty(true); render(); };
+        window.updateName = function(date, idx, val) { if (!data.shifts[date]) return; data.shifts[date][idx].name = val; setDirty(true); render(); };
+        window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
+        window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); if (data.shifts[date].length === 0) delete data.shifts[date]; setDirty(true); render(); };
         window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
         render();
     </script>
