@@ -15,7 +15,8 @@
             50% { box-shadow: 0 0 12px 6px rgba(99,102,241,0.12); transform: translateY(-1px); }
             100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.0); transform: translateY(0); }
         }
-        .delete-btn { background: transparent; border: none; color: #f87171; cursor: pointer; }
+        .delete-btn { color: #f87171; cursor: pointer; }
+        .edit-btn { color: #60a5fa; cursor: pointer; }
         .eq-A { color: #60a5fa; } .eq-B { color: #fbbf24; } .eq-C { color: #f87171; } .eq-D { color: #34d399; }
         .selected-officer { border: 1px solid #6366f1; background-color: #312e81 !important; }
         .highlight-day { border: 2px solid #fbbf24 !important; box-shadow: 0 0 10px rgba(251,191,36,0.3); }
@@ -148,15 +149,23 @@
             const list = document.getElementById('shifts-list'); list.innerHTML = '';
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
                 list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 space-y-2">
-                    <input type="text" value="${s.label}" class="w-full bg-slate-900 text-emerald-400 font-bold text-sm border-none p-0" onchange="updateLabel('${selectedDate}', ${idx}, this.value)">
                     <div class="flex justify-between items-center">
-                        <input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border-none rounded p-1 text-sm mr-2" onchange="updateName('${selectedDate}', ${idx}, this.value)">
-                        <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button>
+                        <input type="text" id="label-${idx}" value="${s.label}" readonly class="bg-transparent text-emerald-400 font-bold text-sm w-32 outline-none border-b border-transparent focus:border-indigo-500">
+                        <div class="flex gap-2">
+                            <span class="edit-btn" onclick="toggleEdit(${idx})">✏️</span>
+                            <span class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</span>
+                        </div>
                     </div>
+                    <input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
                 </div>`;
             });
         }
 
+        window.toggleEdit = function(idx) {
+            const el = document.getElementById('label-' + idx);
+            if (el.hasAttribute('readonly')) { el.removeAttribute('readonly'); el.focus(); el.classList.add('bg-slate-700'); }
+            else { el.setAttribute('readonly', true); el.classList.remove('bg-slate-700'); updateLabel('${selectedDate}', idx, el.value); }
+        };
         window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
         window.updateLabel = function(date, idx, val) { data.shifts[date][idx].label = val; setDirty(true); render(); };
         window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
