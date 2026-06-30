@@ -9,6 +9,18 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        /* animação de piscar para botão salvar */
+        @keyframes pulseSave {
+          0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.6); transform: translateY(0); }
+          50% { box-shadow: 0 0 12px 6px rgba(99,102,241,0.12); transform: translateY(-1px); }
+          100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.0); transform: translateY(0); }
+        }
+        .save-pulse {
+          animation: pulseSave 1.2s infinite;
+          outline: 2px solid rgba(99,102,241,0.12);
+        }
+        /* botão de deletar */
+        .delete-btn { background: transparent; border: none; color: #f87171; cursor: pointer; }
     </style>
 </head>
 <body class="bg-slate-950 min-h-screen text-slate-200 p-4 md:p-8">
@@ -16,7 +28,7 @@
     <!-- Header -->
     <header class="max-w-7xl mx-auto flex justify-between items-center mb-8">
         <h1 class="text-2xl font-bold text-white">Escalas de Extra do Plantão</h1>
-        <button onclick="saveData()" id="save-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold transition">Salvar Alterações</button>
+        <button id="save-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold transition" onclick="saveData()">Salvar Alterações</button>
     </header>
 
     <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
@@ -54,7 +66,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
   import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-  // Cole aqui o seu firebaseConfig (já fornecido)
+  // Seu firebaseConfig
   const firebaseConfig = {
     apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA",
     authDomain: "escalas-do-plantao-81ae2.firebaseapp.com",
@@ -69,41 +81,87 @@
   // Inicializa Firebase
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const dbRef = ref(db, 'escala_dados'); // caminho onde os dados serão salvos
+  const dbRef = ref(db, 'escala_dados');
 
-  // Estrutura de dados local
+  // Estado local
   let data = { shifts: {} };
   let currentView = new Date();
   let selectedDate = null;
+  let dirty = false; // indica alterações não salvas
+  const SAVE_BACKUP_KEY = 'escala_backup_v1';
 
-  // Escuta em tempo real: sempre que o DB mudar, atualiza `data` e a UI
+  // Utilitários de backup local
+  function backupLocal() {
+    try {
+      localStorage.setItem(SAVE_BACKUP_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Não foi possível salvar backup local:", e);
+    }
+  }
+  function clearLocalBackup() {
+    try { localStorage.removeItem(SAVE_BACKUP_KEY); } catch(e){}
+  }
+  function getLocalBackup() {
+    try { return JSON.parse(localStorage.getItem(SAVE_BACKUP_KEY)); } catch(e){ return null; }
+  }
+
+  // Marca como sujo e atualiza UI do botão salvar
+  function setDirty(val = true) {
+    dirty = val;
+    const btn = document.getElementById('save-btn');
+    if (dirty) {
+      btn.classList.add('save-pulse');
+      btn.innerText = "Salvar Alterações *";
+      backupLocal();
+    } else {
+      btn.classList.remove('save-pulse');
+      btn.innerText = "Salvar Alterações";
+      clearLocalBackup();
+    }
+  }
+
+  // Escuta em tempo real do Firebase
   onValue(dbRef, (snapshot) => {
-    data = snapshot.val() || { shifts: {} };
+    const remote = snapshot.val() || { shifts: {} };
+    // Se houver backup local e for diferente do remoto, perguntar ao usuário
+    const backup = getLocalBackup();
+    if (backup && JSON.stringify(backup) !== JSON.stringify(remote)) {
+      // Pergunta simples: restaurar backup local?
+      const restore = confirm("Existe um backup local com alterações não salvas. Deseja restaurar essas alterações locais e salvá-las no servidor?");
+      if (restore) {
+        data = backup;
+        // salva imediatamente no Firebase
+        saveData();
+        return;
+      } else {
+        // descarta backup e usa remoto
+        clearLocalBackup();
+      }
+    }
+    data = remote;
+    setDirty(false); // dados sincronizados com o servidor
     render();
   }, (error) => {
     console.error("Erro ao escutar o banco:", error);
   });
 
-  // Função para salvar dados no Firebase (substitui seu fetch POST)
+  // Salva dados no Firebase
   window.saveData = async function() {
     const btn = document.getElementById('save-btn');
     btn.innerText = "Salvando...";
     try {
       await set(dbRef, data);
+      setDirty(false);
       btn.innerText = "Salvo!";
-      setTimeout(() => btn.innerText = "Salvar Alterações", 2000);
+      setTimeout(() => { if (!dirty) btn.innerText = "Salvar Alterações"; }, 1500);
     } catch (e) {
-      alert("Erro ao salvar!");
+      alert("Erro ao salvar! Verifique sua conexão.");
       console.error(e);
       btn.innerText = "Salvar Alterações";
     }
   };
 
-  // --- Abaixo copie exatamente suas funções de renderização e manipulação ---
-  // Copie as funções render, renderCalendar, renderUsers, renderShifts,
-  // updateName, addShift, changeMonth e a chamada inicial fetchData() substituída.
-  // Exemplo adaptado do seu código original:
-
+  // Renderização
   function render() {
     document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     renderCalendar();
@@ -138,22 +196,37 @@
   }
 
   function renderShifts() {
-    if (!selectedDate) return;
+    if (!selectedDate) {
+      document.getElementById('day-title').innerText = 'Selecione um dia';
+      document.getElementById('shifts-list').innerHTML = '';
+      return;
+    }
     document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
     const list = document.getElementById('shifts-list');
     list.innerHTML = '';
     (data.shifts[selectedDate] || []).forEach((s, idx) => {
       list.innerHTML += `
-        <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
-          <div class="text-xs font-bold mb-1 ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
-          <input type="text" value="${s.name || ''}" placeholder="Nome..." class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+        <div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <div class="text-xs font-bold mb-1 ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
+            <input type="text" value="${s.name || ''}" placeholder="Nome..." class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})" title="Deletar vaga">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7L5 7M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+              </svg>
+            </button>
+          </div>
         </div>`;
     });
   }
 
-  window.updateName = function(date, idx, val) { 
+  // Manipulação de dados
+  window.updateName = function(date, idx, val) {
     if (!data.shifts[date]) return;
     data.shifts[date][idx].name = val;
+    setDirty(true);
     render();
   };
 
@@ -163,13 +236,35 @@
     if (!data.shifts[selectedDate]) data.shifts[selectedDate] = [];
     data.shifts[selectedDate].push({ label: input.value, name: '' });
     input.value = '';
+    setDirty(true);
+    render();
+  };
+
+  window.deleteShift = function(date, idx) {
+    if (!data.shifts[date]) return;
+    const ok = confirm("Deseja realmente deletar esta vaga?");
+    if (!ok) return;
+    data.shifts[date].splice(idx, 1);
+    if (data.shifts[date].length === 0) delete data.shifts[date];
+    setDirty(true);
     render();
   };
 
   window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
 
-  // Não chamamos fetchData; o onValue já sincroniza os dados em tempo real.
-  // Se quiser forçar um render inicial caso o DB esteja vazio:
+  // Antes de fechar a aba: se houver alterações não salvas, pede confirmação
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    // salva backup local (já feito em setDirty, mas reforça)
+    backupLocal();
+    // padrão para disparar o diálogo do navegador
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  });
+
+  // Ao carregar, se houver backup local e DB vazio/diferente, o onValue já perguntará.
+  // Força um render inicial enquanto espera o onValue
   render();
 </script>
 
