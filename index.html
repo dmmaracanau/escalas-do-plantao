@@ -15,8 +15,8 @@
             50% { box-shadow: 0 0 12px 6px rgba(99,102,241,0.12); transform: translateY(-1px); }
             100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.0); transform: translateY(0); }
         }
-        .delete-btn { color: #f87171; cursor: pointer; }
-        .edit-btn { color: #60a5fa; cursor: pointer; }
+        .delete-btn { color: #f87171; cursor: pointer; padding: 4px; }
+        .edit-btn { color: #60a5fa; cursor: pointer; padding: 4px; }
         .eq-A { color: #60a5fa; } .eq-B { color: #fbbf24; } .eq-C { color: #f87171; } .eq-D { color: #34d399; }
         .selected-officer { border: 1px solid #6366f1; background-color: #312e81 !important; }
         .highlight-day { border: 2px solid #fbbf24 !important; box-shadow: 0 0 10px rgba(251,191,36,0.3); }
@@ -78,22 +78,25 @@
         let selectedOfficers = [];
         let dirty = false;
 
-        window.getEquipe = function(dateStr) {
+        window.getEquipe = (dateStr) => {
             const [y, m, d] = dateStr.split('-').map(Number);
-            const target = new Date(y, m - 1, d);
             const start = new Date(2026, 6, 1);
-            const diffDays = Math.floor((target - start) / (1000 * 60 * 60 * 24));
-            const equipes = ['A', 'B', 'C', 'D'];
-            return equipes[((diffDays % 4) + 4) % 4];
+            const diffDays = Math.floor((new Date(y, m - 1, d) - start) / (86400000));
+            return ['A', 'B', 'C', 'D'][((diffDays % 4) + 4) % 4];
         };
 
-        window.clearSelection = function() { selectedOfficers = []; render(); };
+        window.clearSelection = () => { selectedOfficers = []; render(); };
 
-        function setDirty(val = true) { dirty = val; const btn = document.getElementById('save-btn'); if (dirty) { btn.classList.add('save-pulse'); btn.innerText = "Salvar Alterações *"; } else { btn.classList.remove('save-pulse'); btn.innerText = "Salvar Alterações"; } }
+        const setDirty = (val = true) => {
+            dirty = val;
+            const btn = document.getElementById('save-btn');
+            if (dirty) { btn.classList.add('save-pulse'); btn.innerText = "Salvar Alterações *"; }
+            else { btn.classList.remove('save-pulse'); btn.innerText = "Salvar Alterações"; }
+        };
 
         onValue(dbRef, (snapshot) => { data = snapshot.val() || { shifts: {} }; render(); });
 
-        window.saveData = async function() { try { await set(dbRef, data); setDirty(false); } catch (e) { alert("Erro ao salvar."); } };
+        window.saveData = async () => { try { await set(dbRef, data); setDirty(false); } catch (e) { alert("Erro ao salvar."); } };
 
         function render() {
             document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -125,16 +128,13 @@
             const userList = document.getElementById('user-list'); userList.innerHTML = '';
             const userCounts = {};
             Object.values(data.shifts).flat().forEach(s => { if (s.name) userCounts[s.name] = (userCounts[s.name] || 0) + 1; });
-            
             Object.keys(userCounts).sort().forEach(u => {
                 const isSelected = selectedOfficers.includes(u);
-                const totalHours = userCounts[u] * 12;
                 const div = document.createElement('div');
                 div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 flex justify-between ${isSelected ? 'selected-officer' : 'bg-slate-800'}`;
-                div.innerHTML = `<span>${u}</span> <span class="font-bold text-emerald-400">${totalHours}h</span>`;
+                div.innerHTML = `<span>${u}</span> <span class="font-bold text-emerald-400">${userCounts[u] * 12}h</span>`;
                 div.onclick = () => { 
-                    if (isSelected) selectedOfficers = selectedOfficers.filter(o => o !== u);
-                    else selectedOfficers.push(u);
+                    selectedOfficers = isSelected ? selectedOfficers.filter(o => o !== u) : [...selectedOfficers, u];
                     render(); 
                 };
                 userList.appendChild(div);
@@ -142,35 +142,34 @@
         }
 
         function renderShifts() {
-            if (!selectedDate) { document.getElementById('day-title').innerText = 'Selecione um dia'; document.getElementById('team-badge').innerHTML = ''; document.getElementById('shifts-list').innerHTML = ''; return; }
-            const eq = getEquipe(selectedDate);
-            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
-            document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
+            if (!selectedDate) return;
             const list = document.getElementById('shifts-list'); list.innerHTML = '';
+            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
+            document.getElementById('team-badge').innerHTML = `<span class="eq-${getEquipe(selectedDate)}">EQUIPE ${getEquipe(selectedDate)}</span>`;
+            
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 space-y-2">
-                    <div class="flex justify-between items-center">
+                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                    <div class="flex justify-between items-center mb-2">
                         <input type="text" id="label-${idx}" value="${s.label}" readonly class="bg-transparent text-emerald-400 font-bold text-sm w-32 outline-none border-b border-transparent focus:border-indigo-500">
-                        <div class="flex gap-2">
-                            <span class="edit-btn" onclick="toggleEdit(${idx})">✏️</span>
-                            <span class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</span>
+                        <div class="flex gap-1">
+                            <span class="edit-btn text-xs bg-slate-900 px-2 py-1 rounded" onclick="toggleEdit(${idx})">Editar</span>
+                            <span class="delete-btn text-xs bg-slate-900 px-2 py-1 rounded" onclick="deleteShift('${selectedDate}', ${idx})">Remover</span>
                         </div>
                     </div>
-                    <input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
+                    <input type="text" value="${s.name || ''}" placeholder="Digite seu nome (Ex. João)" class="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)">
                 </div>`;
             });
         }
 
-        window.toggleEdit = function(idx) {
+        window.toggleEdit = (idx) => {
             const el = document.getElementById('label-' + idx);
             if (el.hasAttribute('readonly')) { el.removeAttribute('readonly'); el.focus(); el.classList.add('bg-slate-700'); }
-            else { el.setAttribute('readonly', true); el.classList.remove('bg-slate-700'); updateLabel('${selectedDate}', idx, el.value); }
+            else { el.setAttribute('readonly', true); el.classList.remove('bg-slate-700'); data.shifts[selectedDate][idx].label = el.value; setDirty(); render(); }
         };
-        window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
-        window.updateLabel = function(date, idx, val) { data.shifts[date][idx].label = val; setDirty(true); render(); };
-        window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
-        window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); if (data.shifts[date].length === 0) delete data.shifts[date]; setDirty(true); render(); };
-        window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
+        window.updateName = (d, i, v) => { data.shifts[d][i].name = v; setDirty(); render(); };
+        window.addShift = () => { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(); render(); };
+        window.deleteShift = (d, i) => { data.shifts[d].splice(i, 1); if (data.shifts[d].length === 0) delete data.shifts[d]; setDirty(); render(); };
+        window.changeMonth = (dir) => { currentView.setMonth(currentView.getMonth() + dir); render(); };
         render();
     </script>
 </body>
