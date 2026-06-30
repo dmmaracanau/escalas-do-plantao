@@ -16,10 +16,12 @@
             100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.0); transform: translateY(0); }
         }
         .delete-btn { background: transparent; border: none; color: #f87171; cursor: pointer; }
-        .eq-A { color: #60a5fa; } /* Azul */
-        .eq-B { color: #fbbf24; } /* Amarelo */
-        .eq-C { color: #f87171; } /* Vermelho */
-        .eq-D { color: #34d399; } /* Verde */
+        .eq-A { color: #60a5fa; }
+        .eq-B { color: #fbbf24; }
+        .eq-C { color: #f87171; }
+        .eq-D { color: #34d399; }
+        .selected-officer { border: 1px solid #6366f1; background-color: #312e81 !important; }
+        .highlight-day { border: 2px solid #fbbf24 !important; box-shadow: 0 0 10px rgba(251,191,36,0.3); }
     </style>
 </head>
 <body class="bg-slate-950 min-h-screen text-slate-200 p-4 md:p-8">
@@ -31,7 +33,7 @@
 
     <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <aside class="w-full md:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit">
-            <h2 class="text-sm font-bold text-slate-500 uppercase mb-4">Colaboradores</h2>
+            <h2 class="text-sm font-bold text-slate-500 uppercase mb-4">Oficial Investigador Policial</h2>
             <div id="user-list" class="space-y-2"></div>
         </aside>
 
@@ -62,17 +64,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
         import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCbjdviI4dYlyvSuMYrqupU0TW-aMUntoA",
-            authDomain: "escalas-do-plantao-81ae2.firebaseapp.com",
-            databaseURL: "https://escalas-do-plantao-81ae2-default-rtdb.firebaseio.com",
-            projectId: "escalas-do-plantao-81ae2",
-            storageBucket: "escalas-do-plantao-81ae2.firebasestorage.app",
-            messagingSenderId: "545888551770",
-            appId: "1:545888551770:web:381cd7cbf5e138013c2963",
-            measurementId: "G-VNDR0J2KC6"
-        };
-
+        const firebaseConfig = { /* ... seu config ... */ };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const dbRef = ref(db, 'escala_dados');
@@ -80,17 +72,15 @@
         let data = { shifts: {} };
         let currentView = new Date();
         let selectedDate = null;
+        let selectedOfficer = null; // Novo estado
         let dirty = false;
 
-        // A lógica corrige o ciclo: 01/07 (Quarta) é Equipe A.
-        // getTimezoneOffset é usado para evitar problemas com horários de verão/fusos
         window.getEquipe = function(dateStr) {
             const [y, m, d] = dateStr.split('-').map(Number);
             const target = new Date(y, m - 1, d);
-            const start = new Date(2026, 6, 1); // 01/07/2026
+            const start = new Date(2026, 6, 1);
             const diffDays = Math.floor((target - start) / (1000 * 60 * 60 * 24));
             const equipes = ['A', 'B', 'C', 'D'];
-            // Garante que o índice seja positivo
             return equipes[((diffDays % 4) + 4) % 4];
         };
 
@@ -101,14 +91,9 @@
             else { btn.classList.remove('save-pulse'); btn.innerText = "Salvar Alterações"; }
         }
 
-        onValue(dbRef, (snapshot) => {
-            data = snapshot.val() || { shifts: {} };
-            render();
-        });
+        onValue(dbRef, (snapshot) => { data = snapshot.val() || { shifts: {} }; render(); });
 
-        window.saveData = async function() {
-            try { await set(dbRef, data); setDirty(false); } catch (e) { alert("Erro ao salvar."); }
-        };
+        window.saveData = async function() { try { await set(dbRef, data); setDirty(false); } catch (e) { alert("Erro ao salvar."); } };
 
         function render() {
             document.getElementById('month-year').innerText = currentView.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -128,8 +113,15 @@
                 const dateStr = `${currentView.getFullYear()}-${String(currentView.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 const eq = getEquipe(dateStr);
                 const shifts = data.shifts[dateStr] || [];
+                
+                // Verifica se oficial selecionado tem plantão neste dia
+                const hasShift = selectedOfficer && shifts.some(s => s.name === selectedOfficer);
+                
                 const div = document.createElement('div');
-                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 flex flex-col justify-between ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''}`;
+                div.className = `h-24 bg-slate-800 rounded-lg p-2 cursor-pointer hover:ring-1 hover:ring-indigo-500 flex flex-col justify-between 
+                                ${selectedDate === dateStr ? 'ring-2 ring-indigo-500' : ''} 
+                                ${hasShift ? 'highlight-day' : ''}`;
+                
                 div.innerHTML = `
                     <div class="flex justify-between items-start">
                         <span class="font-bold text-lg">${d}</span>
@@ -147,32 +139,18 @@
             userList.innerHTML = '';
             const users = new Set();
             Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
-            users.forEach(u => userList.innerHTML += `<div class="text-sm bg-slate-800 p-2 rounded">${u}</div>`);
-        }
-
-        function renderShifts() {
-            if (!selectedDate) {
-                document.getElementById('day-title').innerText = 'Selecione um dia';
-                document.getElementById('team-badge').innerHTML = '';
-                document.getElementById('shifts-list').innerHTML = '';
-                return;
-            }
-            const eq = getEquipe(selectedDate);
-            document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
-            document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
-            const list = document.getElementById('shifts-list');
-            list.innerHTML = '';
-            (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `
-                    <div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between">
-                        <div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div>
-                        <input type="text" value="${s.name || ''}" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div>
-                        <button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button>
-                    </div>`;
+            Array.from(users).sort().forEach(u => {
+                const div = document.createElement('div');
+                div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 ${selectedOfficer === u ? 'selected-officer' : 'bg-slate-800'}`;
+                div.innerText = u;
+                div.onclick = () => { selectedOfficer = (selectedOfficer === u) ? null : u; render(); };
+                userList.appendChild(div);
             });
         }
 
-        window.updateName = function(date, idx, val) { if (!data.shifts[date]) return; data.shifts[date][idx].name = val; setDirty(true); render(); };
+        function renderShifts() { /* ... resto igual ... */ }
+
+        window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
         window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
         window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); if (data.shifts[date].length === 0) delete data.shifts[date]; setDirty(true); render(); };
         window.changeMonth = function(dir) { currentView.setMonth(currentView.getMonth() + dir); render(); };
