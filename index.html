@@ -31,7 +31,7 @@
     <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <aside class="w-full md:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-sm font-bold text-slate-500 uppercase">OIP</h2>
+                <h2 class="text-sm font-bold text-slate-500 uppercase">OIP (Total Horas)</h2>
                 <button onclick="clearSelection()" class="text-[10px] bg-slate-800 px-2 py-1 rounded hover:bg-slate-700 uppercase">Limpar</button>
             </div>
             <div id="user-list" class="space-y-2"></div>
@@ -120,12 +120,15 @@
 
         function renderUsers() {
             const userList = document.getElementById('user-list'); userList.innerHTML = '';
-            const users = new Set(); Object.values(data.shifts).flat().forEach(s => { if (s.name) users.add(s.name); });
-            Array.from(users).sort().forEach(u => {
+            const userCounts = {};
+            Object.values(data.shifts).flat().forEach(s => { if (s.name) userCounts[s.name] = (userCounts[s.name] || 0) + 1; });
+            
+            Object.keys(userCounts).sort().forEach(u => {
                 const isSelected = selectedOfficers.includes(u);
+                const totalHours = userCounts[u] * 12;
                 const div = document.createElement('div');
-                div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 ${isSelected ? 'selected-officer' : 'bg-slate-800'}`;
-                div.innerText = u;
+                div.className = `text-sm p-2 rounded cursor-pointer hover:bg-indigo-900 flex justify-between ${isSelected ? 'selected-officer' : 'bg-slate-800'}`;
+                div.innerHTML = `<span>${u}</span> <span class="font-bold text-emerald-400">${totalHours}h</span>`;
                 div.onclick = () => { 
                     if (isSelected) selectedOfficers = selectedOfficers.filter(o => o !== u);
                     else selectedOfficers.push(u);
