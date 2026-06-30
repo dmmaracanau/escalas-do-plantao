@@ -147,7 +147,7 @@
             document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
             const list = document.getElementById('shifts-list'); list.innerHTML = '';
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between"><div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div><input type="text" value="${s.name || ''}" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div><button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button></div>`;
+                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between"><div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div><input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div><button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button></div>`;
             });
         }
 
