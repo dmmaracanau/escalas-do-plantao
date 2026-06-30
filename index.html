@@ -32,7 +32,7 @@
     <main class="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <aside class="w-full md:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-sm font-bold text-slate-500 uppercase">OIP (Total Horas)</h2>
+                <h2 class="text-sm font-bold text-slate-500 uppercase">OIP (Mês Atual)</h2>
                 <button onclick="clearSelection()" class="text-[10px] bg-slate-800 px-2 py-1 rounded hover:bg-slate-700 uppercase">Limpar</button>
             </div>
             <div id="user-list" class="space-y-2"></div>
@@ -123,7 +123,21 @@
         function renderUsers() {
             const userList = document.getElementById('user-list'); userList.innerHTML = '';
             const userCounts = {};
-            Object.values(data.shifts).flat().forEach(s => { if (s.name) userCounts[s.name] = (userCounts[s.name] || 0) + 1; });
+            
+            const currentYearStr = String(currentView.getFullYear());
+            const currentMonthStr = String(currentView.getMonth() + 1).padStart(2, '0');
+            const monthPrefix = `${currentYearStr}-${currentMonthStr}`;
+
+            Object.keys(data.shifts).forEach(dateStr => {
+                if (dateStr.startsWith(monthPrefix)) {
+                    const shifts = data.shifts[dateStr] || [];
+                    shifts.forEach(s => {
+                        if (s.name) {
+                            userCounts[s.name] = (userCounts[s.name] || 0) + 1;
+                        }
+                    });
+                }
+            });
             
             Object.keys(userCounts).sort().forEach(u => {
                 const isSelected = selectedOfficers.includes(u);
@@ -146,11 +160,67 @@
             document.getElementById('day-title').innerText = `Dia ${selectedDate.split('-').reverse().join('/')}`;
             document.getElementById('team-badge').innerHTML = `<span class="eq-${eq}">EQUIPE ${eq}</span>`;
             const list = document.getElementById('shifts-list'); list.innerHTML = '';
+            
             (data.shifts[selectedDate] || []).forEach((s, idx) => {
-                list.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between"><div><div class="text-xs font-bold ${s.name ? 'text-red-400' : 'text-emerald-400'}">${s.label}</div><input type="text" value="${s.name || ''}" placeholder="Digite corretamente seu nome aqui, respeitando a escrita. Ex. João" class="w-full bg-slate-950 border-none rounded p-1 text-sm" onchange="updateName('${selectedDate}', ${idx}, this.value)"></div><button class="delete-btn" onclick="deleteShift('${selectedDate}', ${idx})">✕</button></div>`;
+                const shiftCard = document.createElement('div');
+                shiftCard.className = "p-3 bg-slate-800 rounded-lg border border-slate-700 flex justify-between";
+                
+                const leftContainer = document.createElement('div');
+                leftContainer.className = "flex-grow mr-2";
+                
+                const labelElement = document.createElement('div');
+                labelElement.className = `text-xs font-bold cursor-pointer select-none ${s.name ? 'text-red-400' : 'text-emerald-400'}`;
+                labelElement.innerText = s.label;
+                labelElement.title = "Clique duplo para editar o nome da vaga";
+                
+                labelElement.ondblclick = (e) => {
+                    e.stopPropagation();
+                    const inputEdit = document.createElement('input');
+                    inputEdit.type = "text";
+                    inputEdit.value = s.label;
+                    inputEdit.className = "w-full bg-slate-950 border border-indigo-500 rounded p-1 text-xs text-white outline-none font-bold";
+                    
+                    const saveLabel = () => {
+                        if (inputEdit.value.trim() !== "") {
+                            window.updateShiftLabel(selectedDate, idx, inputEdit.value.trim());
+                        } else {
+                            labelElement.replaceWith(labelElement);
+                            renderShifts();
+                        }
+                    };
+                    
+                    inputEdit.onblur = saveLabel;
+                    inputEdit.onkeydown = (ev) => {
+                        if (ev.key === 'Enter') saveLabel();
+                        if (ev.key === 'Escape') renderShifts();
+                    };
+                    
+                    labelElement.replaceWith(inputEdit);
+                    inputEdit.focus();
+                };
+
+                const nameInput = document.createElement('input');
+                nameInput.type = "text";
+                nameInput.value = s.name || '';
+                nameInput.placeholder = "Digite corretamente seu nome aqui, respeitando a escrita. Ex. João";
+                nameInput.className = "w-full bg-slate-950 border-none rounded p-1 text-sm mt-1";
+                nameInput.onchange = (e) => window.updateName(selectedDate, idx, e.target.value);
+                
+                leftContainer.appendChild(labelElement);
+                leftContainer.appendChild(nameInput);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = "delete-btn";
+                deleteBtn.innerHTML = "✕";
+                deleteBtn.onclick = () => window.deleteShift(selectedDate, idx);
+                
+                shiftCard.appendChild(leftContainer);
+                shiftCard.appendChild(deleteBtn);
+                list.appendChild(shiftCard);
             });
         }
 
+        window.updateShiftLabel = function(date, idx, newLabel) { data.shifts[date][idx].label = newLabel; setDirty(true); render(); };
         window.updateName = function(date, idx, val) { data.shifts[date][idx].name = val; setDirty(true); render(); };
         window.addShift = function() { const input = document.getElementById('new-shift-input'); if (!selectedDate || !input.value) return; if (!data.shifts[selectedDate]) data.shifts[selectedDate] = []; data.shifts[selectedDate].push({ label: input.value, name: '' }); input.value = ''; setDirty(true); render(); };
         window.deleteShift = function(date, idx) { data.shifts[date].splice(idx, 1); if (data.shifts[date].length === 0) delete data.shifts[date]; setDirty(true); render(); };
